@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:maplelegends.com)",
+      "WebFetch(domain:www.artalemaplestory.com)",
+      "WebFetch(domain:maplestorywiki.net)",
+      "WebFetch(domain:maplestory.fandom.com)"
+    ]
+  }
+}

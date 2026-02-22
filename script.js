@@ -155,11 +155,19 @@ function populateJobs() {
 }
 
 function populateMonsters() {
+  let currentGroup = null;
+  let currentArea = '';
   monsters.forEach((m, i) => {
+    if (m.area !== currentArea) {
+      currentArea = m.area;
+      currentGroup = document.createElement('optgroup');
+      currentGroup.label = currentArea;
+      monsterSelect.appendChild(currentGroup);
+    }
     const opt = document.createElement('option');
     opt.value = i;
-    opt.textContent = m.name;
-    monsterSelect.appendChild(opt);
+    opt.textContent = `${m.name} (${m.name_en}) [Lv.${m.level}]`;
+    currentGroup.appendChild(opt);
   });
 }
 
@@ -295,7 +303,7 @@ function updateMonsterInfo() {
   const m = monsters[monsterSelect.value];
   if (!m) { monsterInfo.innerHTML = ''; return; }
   monsterInfo.innerHTML =
-    `HP: <b>${m.hp.toLocaleString()}</b> ｜ 物防: <b>${m.weapon_def}</b> ｜ 魔防: <b>${m.magic_def}</b>`;
+    `Lv.${m.level} ｜ HP: <b>${m.hp.toLocaleString()}</b> ｜ 物防: <b>${m.weapon_def}</b> ｜ 魔防: <b>${m.magic_def}</b>`;
 }
 
 function updateSkillInfo() {
