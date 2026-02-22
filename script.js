@@ -14,7 +14,7 @@ const THEME_KEY = 'nshot-theme';
 let strInput, dexInput, intInput, lukInput;
 let atkMinInput, atkMaxInput;
 let watkValue;
-let monsterSelect, skillSelect, skillLevelInput, venomLevelInput;
+let monsterSelect, skillSelect, skillLevelInput, venomEnabledCheck, venomLevelInput;
 let monsterInfo, skillInfo, venomInfo;
 let calculateBtn, resultsDiv;
 let themeToggle;
@@ -35,6 +35,7 @@ function init() {
   monsterSelect = document.getElementById('monster-select');
   skillSelect = document.getElementById('skill-select');
   skillLevelInput = document.getElementById('skill-level');
+  venomEnabledCheck = document.getElementById('venom-enabled');
   venomLevelInput = document.getElementById('venom-level');
   monsterInfo = document.getElementById('monster-info');
   skillInfo = document.getElementById('skill-info');
@@ -65,10 +66,27 @@ function init() {
   allInputs.forEach(el => el.addEventListener('input', saveToStorage));
   monsterSelect.addEventListener('change', saveToStorage);
   skillSelect.addEventListener('change', saveToStorage);
+  venomEnabledCheck.addEventListener('change', saveToStorage);
+  venomEnabledCheck.addEventListener('change', updateVenomInfo);
+
+  // Sanitize stat/range inputs on blur: clamp to non-negative integer
+  [strInput, dexInput, intInput, lukInput, atkMinInput, atkMaxInput].forEach(el =>
+    el.addEventListener('blur', () => {
+      el.value = Math.max(0, Math.floor(parseFloat(el.value) || 0));
+      saveToStorage();
+    })
+  );
+  // Validate skill level inputs on input
+  [skillLevelInput, venomLevelInput].forEach(el =>
+    el.addEventListener('input', () => validateSkillLevel(el))
+  );
 
   // Listeners
   [strInput, dexInput, lukInput, atkMinInput, atkMaxInput].forEach(el =>
     el.addEventListener('input', updateWATK)
+  );
+  [strInput, dexInput, lukInput].forEach(el =>
+    el.addEventListener('input', updateVenomInfo)
   );
   monsterSelect.addEventListener('change', updateMonsterInfo);
   skillSelect.addEventListener('change', updateSkillInfo);
@@ -133,9 +151,10 @@ function updateSkillInfo() {
 }
 
 function updateVenomInfo() {
+  const enabled = venomEnabledCheck.checked;
   const level = parseInt(venomLevelInput.value) || 0;
-  if (level <= 0) {
-    venomInfo.innerHTML = '<span style="color:#999">已停用</span>';
+  if (!enabled || level <= 0) {
+    venomInfo.innerHTML = '<span style="color:var(--text-muted)">已停用</span>';
     return;
   }
   const vp = calcVenomParams(level, num(strInput), num(dexInput), num(lukInput));
@@ -276,9 +295,10 @@ function onCalculate() {
   const skill = getSelectedAttackSkill();
   const skillLevel = clampLevel(skillLevelInput, skill);
 
+  const venomEnabled = venomEnabledCheck.checked;
   const venomLevel = parseInt(venomLevelInput.value) || 0;
   let venomParams = null;
-  if (venomLevel > 0) {
+  if (venomEnabled && venomLevel > 0) {
     venomParams = calcVenomParams(venomLevel, num(strInput), num(dexInput), num(lukInput));
   }
 
@@ -341,9 +361,9 @@ function displayResults(distribution, total) {
 // Utility helpers
 // ============================================================
 
-/** Parse number from input element, default 0 */
+/** Parse number from input element, default 0, clamp to >= 0 integer */
 function num(el) {
-  return parseFloat(el.value) || 0;
+  return Math.max(0, Math.floor(parseFloat(el.value) || 0));
 }
 
 /** Random integer in [min, max] inclusive */
@@ -368,11 +388,32 @@ function getSelectedAttackSkill() {
   return skills.find(s => s.id === skillSelect.value) || skills.find(s => s.type === 'attack');
 }
 
-/** Clamp skill level input to valid range */
+/** Clamp skill level input to valid range (for calculation only) */
 function clampLevel(input, skill) {
   let v = parseInt(input.value) || skill.default_level;
   v = Math.max(skill.min_level, Math.min(skill.max_level, v));
   return v;
+}
+
+/** Show/hide validation tooltip on skill level inputs */
+function validateSkillLevel(el) {
+  const min = parseInt(el.min) || 0;
+  const max = parseInt(el.max) || 30;
+  const v = parseInt(el.value);
+  const invalid = isNaN(v) || v < min || v > max || el.value !== String(Math.floor(v));
+  el.classList.toggle('input-invalid', invalid);
+  // Manage tooltip span
+  let tip = el.parentElement.querySelector('.validation-tip');
+  if (invalid) {
+    if (!tip) {
+      tip = document.createElement('span');
+      tip.className = 'validation-tip';
+      el.parentElement.appendChild(tip);
+    }
+    tip.textContent = `請輸入 ${min}~${max} 的整數`;
+  } else if (tip) {
+    tip.remove();
+  }
 }
 
 // ============================================================
@@ -414,6 +455,7 @@ function saveToStorage() {
     monster: monsterSelect.value,
     skill: skillSelect.value,
     skillLevel: skillLevelInput.value,
+    venomEnabled: venomEnabledCheck.checked,
     venomLevel: venomLevelInput.value
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -433,6 +475,7 @@ function loadFromStorage() {
     if (data.monster !== undefined) monsterSelect.value = data.monster;
     if (data.skill !== undefined) skillSelect.value = data.skill;
     if (data.skillLevel !== undefined) skillLevelInput.value = data.skillLevel;
+    if (data.venomEnabled !== undefined) venomEnabledCheck.checked = data.venomEnabled;
     if (data.venomLevel !== undefined) venomLevelInput.value = data.venomLevel;
   } catch (e) {
     // Ignore corrupt data

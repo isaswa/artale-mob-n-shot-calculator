@@ -101,7 +101,10 @@
       <hr>
 
       <div class="form-group">
-        <label for="venom-level">飛毒殺 (Venom) 等級 <span class="hint">— 0 = 停用</span></label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="venom-enabled" checked>
+          <span>飛毒殺 (Venom) 等級 <span class="hint">(0 = 停用)</span></span>
+        </label>
         <input type="number" id="venom-level" value="1" min="0" max="30">
       </div>
       <div class="info-box" id="venom-info"></div>
