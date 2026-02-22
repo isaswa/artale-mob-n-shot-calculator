@@ -16,6 +16,8 @@ let atkMinInput, atkMaxInput;
 let watkValue;
 let monsterSelect, skillSelect, skillLevelInput, venomEnabledCheck, venomLevelInput;
 let monsterInfo, skillInfo, venomInfo;
+let buffTakoyaki, buffSnowflake, buffCustomEnabled, buffCustomWatk;
+let buffedRangeValue, buffedWatkRow, buffedWatkValue;
 let calculateBtn, resultsDiv;
 let themeToggle;
 
@@ -40,6 +42,13 @@ function init() {
   monsterInfo = document.getElementById('monster-info');
   skillInfo = document.getElementById('skill-info');
   venomInfo = document.getElementById('venom-info');
+  buffTakoyaki = document.getElementById('buff-takoyaki');
+  buffSnowflake = document.getElementById('buff-snowflake');
+  buffCustomEnabled = document.getElementById('buff-custom-enabled');
+  buffCustomWatk = document.getElementById('buff-custom-watk');
+  buffedRangeValue = document.getElementById('buffed-range-value');
+  buffedWatkRow = document.getElementById('buffed-watk-row');
+  buffedWatkValue = document.getElementById('buffed-watk-value');
   calculateBtn = document.getElementById('calculate-btn');
   resultsDiv = document.getElementById('results');
   themeToggle = document.getElementById('theme-toggle');
@@ -56,18 +65,29 @@ function init() {
   loadFromStorage();
 
   updateWATK();
+  updateBuffedRange();
   updateMonsterInfo();
   updateSkillInfo();
   updateVenomInfo();
 
   // Save on every input change
   const allInputs = [strInput, dexInput, intInput, lukInput, atkMinInput, atkMaxInput,
-    skillLevelInput, venomLevelInput];
+    skillLevelInput, venomLevelInput, buffCustomWatk];
   allInputs.forEach(el => el.addEventListener('input', saveToStorage));
   monsterSelect.addEventListener('change', saveToStorage);
   skillSelect.addEventListener('change', saveToStorage);
   venomEnabledCheck.addEventListener('change', saveToStorage);
   venomEnabledCheck.addEventListener('change', updateVenomInfo);
+  const buffCheckboxes = [buffTakoyaki, buffSnowflake, buffCustomEnabled];
+  buffCheckboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) {
+        buffCheckboxes.forEach(other => { if (other !== cb) other.checked = false; });
+      }
+      saveToStorage();
+      updateBuffedRange();
+    });
+  });
 
   // Sanitize stat/range inputs on blur: clamp to non-negative integer
   [strInput, dexInput, intInput, lukInput, atkMinInput, atkMaxInput].forEach(el =>
@@ -82,9 +102,11 @@ function init() {
   );
 
   // Listeners
-  [strInput, dexInput, lukInput, atkMinInput, atkMaxInput].forEach(el =>
-    el.addEventListener('input', updateWATK)
-  );
+  [strInput, dexInput, lukInput, atkMinInput, atkMaxInput].forEach(el => {
+    el.addEventListener('input', updateWATK);
+    el.addEventListener('input', updateBuffedRange);
+  });
+  buffCustomWatk.addEventListener('input', updateBuffedRange);
   [strInput, dexInput, lukInput].forEach(el =>
     el.addEventListener('input', updateVenomInfo)
   );
@@ -165,6 +187,51 @@ function updateVenomInfo() {
     `持續 <b>${vp.duration}ms</b> ｜ 最大 <b>${vp.maxStack}</b> 層<br>` +
     `基本攻擊力: <b>${vp.basicAttack}</b> ｜ ` +
     `每層傷害: <b>${Math.floor(vp.dmgMin)}</b> ~ <b>${Math.floor(vp.dmgMax)}</b>/tick`;
+}
+
+// ============================================================
+// Buff calculation
+// ============================================================
+
+function getBuffWatk() {
+  let buff = 0;
+  if (buffTakoyaki.checked) buff += 8;
+  if (buffSnowflake.checked) buff += 20;
+  if (buffCustomEnabled.checked) buff += num(buffCustomWatk);
+  return buff;
+}
+
+function getBuffedRange() {
+  const baseMin = num(atkMinInput);
+  const baseMax = num(atkMaxInput);
+  const buffWatk = getBuffWatk();
+  if (buffWatk === 0) return { min: baseMin, max: baseMax };
+
+  const luk = num(lukInput);
+  const dex = num(dexInput);
+  const str = num(strInput);
+  const maxCoeff = luk * WEAPON.dagger.max_multiplier + dex + str;
+  const minCoeff = luk * WEAPON.dagger.min_multiplier * 0.9 * JOB.shadower.mastery + dex + str;
+  return {
+    min: baseMin + Math.floor(minCoeff * buffWatk / 100),
+    max: baseMax + Math.floor(maxCoeff * buffWatk / 100)
+  };
+}
+
+function updateBuffedRange() {
+  const range = getBuffedRange();
+  buffedRangeValue.textContent = `${range.min} ~ ${range.max}`;
+
+  // Always show buffed WATK; red when buff active
+  const buffWatk = getBuffWatk();
+  const baseWatk = parseInt(watkValue.textContent);
+  if (!isNaN(baseWatk)) {
+    buffedWatkValue.textContent = baseWatk + buffWatk;
+    buffedWatkValue.style.color = buffWatk > 0 ? '#e53935' : '';
+  } else {
+    buffedWatkValue.textContent = '-';
+    buffedWatkValue.style.color = '';
+  }
 }
 
 // ============================================================
@@ -286,8 +353,7 @@ function runSimulation(playerMin, playerMax, monster, skill, skillLevel, venomPa
 // ============================================================
 
 function onCalculate() {
-  const playerMin = num(atkMinInput);
-  const playerMax = num(atkMaxInput);
+  const { min: playerMin, max: playerMax } = getBuffedRange();
   if (playerMin <= 0 || playerMax <= 0 || playerMin > playerMax) {
     resultsDiv.innerHTML = '<p style="color:red">請輸入有效的攻擊力範圍</p>';
     return;
@@ -465,7 +531,11 @@ function saveToStorage() {
     skill: skillSelect.value,
     skillLevel: skillLevelInput.value,
     venomEnabled: venomEnabledCheck.checked,
-    venomLevel: venomLevelInput.value
+    venomLevel: venomLevelInput.value,
+    buffTakoyaki: buffTakoyaki.checked,
+    buffSnowflake: buffSnowflake.checked,
+    buffCustomEnabled: buffCustomEnabled.checked,
+    buffCustomWatk: buffCustomWatk.value
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
@@ -486,6 +556,10 @@ function loadFromStorage() {
     if (data.skillLevel !== undefined) skillLevelInput.value = data.skillLevel;
     if (data.venomEnabled !== undefined) venomEnabledCheck.checked = data.venomEnabled;
     if (data.venomLevel !== undefined) venomLevelInput.value = data.venomLevel;
+    if (data.buffTakoyaki !== undefined) buffTakoyaki.checked = data.buffTakoyaki;
+    if (data.buffSnowflake !== undefined) buffSnowflake.checked = data.buffSnowflake;
+    if (data.buffCustomEnabled !== undefined) buffCustomEnabled.checked = data.buffCustomEnabled;
+    if (data.buffCustomWatk !== undefined) buffCustomWatk.value = data.buffCustomWatk;
   } catch (e) {
     // Ignore corrupt data
   }
