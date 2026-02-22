@@ -1,0 +1,9 @@
+[
+  {
+    "id": "fossil_dragon_elder",
+    "name": "化石龍長老",
+    "hp": 85000,
+    "weapon_def": 810,
+    "magic_def": 710
+  }
+]
