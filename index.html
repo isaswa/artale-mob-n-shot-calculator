@@ -28,6 +28,15 @@
     <section class="panel" id="stats-panel">
       <h2>角色數值</h2>
 
+      <div class="form-group">
+        <label for="job-select">職業</label>
+        <select id="job-select"></select>
+      </div>
+      <div class="form-group" id="weapon-group" style="display: none">
+        <label for="weapon-select">武器類型</label>
+        <select id="weapon-select"></select>
+      </div>
+
       <div class="stat-row">
         <label class="stat-label str" for="str">力量 STR</label>
         <input type="number" id="str" value="4" min="0">
@@ -91,11 +100,7 @@
           <span class="info-label">Buff後 WATK:</span>
           <span class="info-value" id="buffed-watk-value">-</span>
         </div>
-        <div class="info-hint">
-          MAX = (LUK &times; 4.2 + DEX + STR) &times; WATK / 100<br>
-          MIN = (LUK &times; 3.6 &times; 0.9 &times; mastery + DEX + STR) &times; WATK / 100<br>
-          <small>暗影神偷 mastery = 60%</small>
-        </div>
+        <div class="info-hint" id="watk-hint"></div>
       </div>
     </section>
 
@@ -109,39 +114,41 @@
       </div>
       <div class="info-box" id="monster-info"></div>
 
-      <div class="form-group">
-        <label for="job-select">職業</label>
-        <select id="job-select" disabled>
-          <option>暗影神偷 (Shadower)</option>
-        </select>
-      </div>
-
       <hr>
 
       <div class="form-group">
         <label for="skill-select">攻擊技能</label>
         <select id="skill-select"></select>
       </div>
-      <div class="form-group">
-        <label for="skill-level">技能等級</label>
-        <input type="number" id="skill-level" value="30" min="1" max="30">
+
+      <div id="wip-message" class="info-box" style="display: none; text-align: center; padding: 20px;">
+        尚在製作中
       </div>
-      <div class="info-box" id="skill-info"></div>
 
-      <hr>
+      <div id="implemented-area">
+        <div class="form-group">
+          <label for="skill-level">技能等級</label>
+          <input type="number" id="skill-level" value="30" min="1" max="30">
+        </div>
+        <div class="info-box" id="skill-info"></div>
 
-      <div class="form-group">
-        <label class="checkbox-row">
-          <input type="checkbox" id="venom-enabled" checked>
-          <span>飛毒殺 (Venom) 等級 <span class="hint">(0 = 停用)</span></span>
-        </label>
-        <input type="number" id="venom-level" value="1" min="0" max="30">
+        <hr>
+
+        <div id="venom-area">
+          <div class="form-group">
+            <label class="checkbox-row">
+              <input type="checkbox" id="venom-enabled" checked>
+              <span>飛毒殺 (Venom) 等級 <span class="hint">(0 = 停用)</span></span>
+            </label>
+            <input type="number" id="venom-level" value="1" min="0" max="30">
+          </div>
+          <div class="info-box" id="venom-info"></div>
+        </div>
+
+        <button id="calculate-btn">計算</button>
+
+        <div id="results"></div>
       </div>
-      <div class="info-box" id="venom-info"></div>
-
-      <button id="calculate-btn">計算</button>
-
-      <div id="results"></div>
     </section>
   </main>
 
@@ -168,6 +175,7 @@
   </footer>
 
   <script src="config.js"></script>
+  <script src="job.js"></script>
   <script src="monster.js"></script>
   <script src="skill.js"></script>
   <script src="script.js"></script>

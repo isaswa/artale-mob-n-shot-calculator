@@ -1,23 +1,17 @@
 // === Constants ===
-const WEAPON = {
-  dagger: { min_multiplier: 3.6, max_multiplier: 4.2 }
-};
-
-const JOB = {
-  shadower: { mastery: 0.6 }
-};
-
 const STORAGE_KEY = 'nshot-inputs';
 const THEME_KEY = 'nshot-theme';
 
 // === DOM references (assigned in init) ===
 let strInput, dexInput, intInput, lukInput;
 let atkMinInput, atkMaxInput;
-let watkValue;
+let watkValue, watkHint;
+let jobSelect, weaponGroup, weaponSelect;
 let monsterSelect, skillSelect, skillLevelInput, venomEnabledCheck, venomLevelInput;
 let monsterInfo, skillInfo, venomInfo;
 let buffTakoyaki, buffSnowflake, buffCustomEnabled, buffCustomWatk;
 let buffedRangeValue, buffedWatkRow, buffedWatkValue;
+let wipMessage, implementedArea, venomArea;
 let calculateBtn, resultsDiv;
 let themeToggle;
 
@@ -34,6 +28,10 @@ function init() {
   atkMinInput = document.getElementById('atk-min');
   atkMaxInput = document.getElementById('atk-max');
   watkValue = document.getElementById('watk-value');
+  watkHint = document.getElementById('watk-hint');
+  jobSelect = document.getElementById('job-select');
+  weaponGroup = document.getElementById('weapon-group');
+  weaponSelect = document.getElementById('weapon-select');
   monsterSelect = document.getElementById('monster-select');
   skillSelect = document.getElementById('skill-select');
   skillLevelInput = document.getElementById('skill-level');
@@ -49,6 +47,9 @@ function init() {
   buffedRangeValue = document.getElementById('buffed-range-value');
   buffedWatkRow = document.getElementById('buffed-watk-row');
   buffedWatkValue = document.getElementById('buffed-watk-value');
+  wipMessage = document.getElementById('wip-message');
+  implementedArea = document.getElementById('implemented-area');
+  venomArea = document.getElementById('venom-area');
   calculateBtn = document.getElementById('calculate-btn');
   resultsDiv = document.getElementById('results');
   themeToggle = document.getElementById('theme-toggle');
@@ -57,13 +58,23 @@ function init() {
   loadTheme();
   themeToggle.addEventListener('click', toggleTheme);
 
-  // Populate dropdowns before restoring saved values
+  // Populate static dropdowns
+  populateJobs();
   populateMonsters();
-  populateSkills();
 
-  // Restore saved inputs
+  // Restore saved inputs (including job)
   loadFromStorage();
 
+  // Populate weapons & skills based on restored job, then restore selections
+  const job = getSelectedJob();
+  populateWeapons(job);
+  populateSkills(jobSelect.value);
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  if (saved.weapon) weaponSelect.value = saved.weapon;
+  if (saved.skill) skillSelect.value = saved.skill;
+
+  // Update all displays
+  updateJobUI();
   updateWATK();
   updateBuffedRange();
   updateMonsterInfo();
@@ -74,6 +85,8 @@ function init() {
   const allInputs = [strInput, dexInput, intInput, lukInput, atkMinInput, atkMaxInput,
     skillLevelInput, venomLevelInput, buffCustomWatk];
   allInputs.forEach(el => el.addEventListener('input', saveToStorage));
+  jobSelect.addEventListener('change', onJobChange);
+  weaponSelect.addEventListener('change', onWeaponChange);
   monsterSelect.addEventListener('change', saveToStorage);
   skillSelect.addEventListener('change', saveToStorage);
   venomEnabledCheck.addEventListener('change', saveToStorage);
@@ -102,7 +115,7 @@ function init() {
   );
 
   // Listeners
-  [strInput, dexInput, lukInput, atkMinInput, atkMaxInput].forEach(el => {
+  [strInput, dexInput, intInput, lukInput, atkMinInput, atkMaxInput].forEach(el => {
     el.addEventListener('input', updateWATK);
     el.addEventListener('input', updateBuffedRange);
   });
@@ -121,6 +134,26 @@ function init() {
 // Populate dropdowns
 // ============================================================
 
+function populateJobs() {
+  let currentGroup = null;
+  let currentCategory = '';
+  jobs.forEach(j => {
+    if (j.category_name !== currentCategory) {
+      currentCategory = j.category_name;
+      currentGroup = document.createElement('optgroup');
+      currentGroup.label = currentCategory;
+      jobSelect.appendChild(currentGroup);
+    }
+    const opt = document.createElement('option');
+    opt.value = j.id;
+    opt.textContent = `${j.name} (${j.name_en})`;
+    if (j.disabled) opt.disabled = true;
+    currentGroup.appendChild(opt);
+  });
+  // Default to shadower
+  jobSelect.value = 'shadower';
+}
+
 function populateMonsters() {
   monsters.forEach((m, i) => {
     const opt = document.createElement('option');
@@ -130,8 +163,9 @@ function populateMonsters() {
   });
 }
 
-function populateSkills() {
-  skills.filter(s => s.type === 'attack').forEach(s => {
+function populateSkills(jobId) {
+  skillSelect.innerHTML = '';
+  skills.filter(s => s.type === 'attack' && s.job === jobId).forEach(s => {
     const opt = document.createElement('option');
     opt.value = s.id;
     opt.textContent = `${s.name} (${s.name_en})`;
@@ -140,15 +174,116 @@ function populateSkills() {
 }
 
 // ============================================================
+// Job helpers
+// ============================================================
+
+function getSelectedJob() {
+  return jobs.find(j => j.id === jobSelect.value) || null;
+}
+
+/** Get main and secondary stat values for a given job */
+function getStatValues(job) {
+  const stats = {
+    STR: num(strInput),
+    DEX: num(dexInput),
+    INT: num(intInput),
+    LUK: num(lukInput)
+  };
+  const mainVal = stats[job.main_stat] || 0;
+  let secVal;
+  if (job.secondary_stat === 'STR+DEX') {
+    secVal = stats.STR + stats.DEX;
+  } else {
+    secVal = stats[job.secondary_stat] || 0;
+  }
+  return { main: mainVal, secondary: secVal };
+}
+
+/** Get the currently selected weapon object for the current job */
+function getSelectedWeapon() {
+  const job = getSelectedJob();
+  if (!job || job.weapons.length === 0) return null;
+  if (job.weapons.length === 1) return job.weapons[0];
+  return job.weapons.find(w => w.id === weaponSelect.value) || job.weapons[0];
+}
+
+function populateWeapons(job) {
+  weaponSelect.innerHTML = '';
+  if (!job || job.weapons.length <= 1) {
+    weaponGroup.style.display = 'none';
+    return;
+  }
+  job.weapons.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.id;
+    opt.textContent = `${w.name} (${w.name_en})`;
+    weaponSelect.appendChild(opt);
+  });
+  weaponGroup.style.display = '';
+}
+
+function onJobChange() {
+  const job = getSelectedJob();
+  if (!job) return;
+
+  populateWeapons(job);
+  populateSkills(job.id);
+  updateJobUI();
+  updateWATK();
+  updateBuffedRange();
+  updateSkillInfo();
+  updateVenomInfo();
+  saveToStorage();
+}
+
+function onWeaponChange() {
+  updateWatkHint();
+  updateWATK();
+  updateBuffedRange();
+  saveToStorage();
+}
+
+function updateJobUI() {
+  const job = getSelectedJob();
+  if (!job) return;
+
+  // Show/hide implemented area vs WIP message
+  wipMessage.style.display = job.implemented ? 'none' : '';
+  implementedArea.style.display = job.implemented ? '' : 'none';
+
+  // Show/hide venom area (thief only)
+  venomArea.style.display = job.category === 'thief' ? '' : 'none';
+
+  updateWatkHint();
+}
+
+function updateWatkHint() {
+  const job = getSelectedJob();
+  const weapon = getSelectedWeapon();
+  if (job && weapon) {
+    const mainLabel = job.main_stat;
+    const secLabel = job.secondary_stat;
+    watkHint.innerHTML =
+      `MAX = (${mainLabel} &times; ${weapon.max_multiplier} + ${secLabel}) &times; WATK / 100<br>` +
+      `MIN = (${mainLabel} &times; ${weapon.min_multiplier} &times; 0.9 &times; mastery + ${secLabel}) &times; WATK / 100<br>` +
+      `<small>${job.name} mastery = ${(job.mastery * 100).toFixed(0)}% ｜ 武器: ${weapon.name} (${weapon.name_en})</small>`;
+  } else {
+    watkHint.innerHTML = '<small>法師使用不同的攻擊公式</small>';
+  }
+}
+
+// ============================================================
 // Info displays
 // ============================================================
 
 function updateWATK() {
-  const luk = num(lukInput);
-  const dex = num(dexInput);
-  const str = num(strInput);
+  const job = getSelectedJob();
+  const weapon = getSelectedWeapon();
+  if (!job || !weapon) { watkValue.textContent = '-'; return; }
+
+  const { main, secondary } = getStatValues(job);
   const maxAtk = num(atkMaxInput);
-  const denom = luk * WEAPON.dagger.max_multiplier + dex + str;
+  const denom = main * weapon.max_multiplier + secondary;
   if (denom === 0 || maxAtk === 0) {
     watkValue.textContent = '-';
     return;
@@ -207,11 +342,13 @@ function getBuffedRange() {
   const buffWatk = getBuffWatk();
   if (buffWatk === 0) return { min: baseMin, max: baseMax };
 
-  const luk = num(lukInput);
-  const dex = num(dexInput);
-  const str = num(strInput);
-  const maxCoeff = luk * WEAPON.dagger.max_multiplier + dex + str;
-  const minCoeff = luk * WEAPON.dagger.min_multiplier * 0.9 * JOB.shadower.mastery + dex + str;
+  const job = getSelectedJob();
+  const weapon = getSelectedWeapon();
+  if (!job || !weapon) return { min: baseMin, max: baseMax };
+
+  const { main, secondary } = getStatValues(job);
+  const maxCoeff = main * weapon.max_multiplier + secondary;
+  const minCoeff = main * weapon.min_multiplier * 0.9 * job.mastery + secondary;
   return {
     min: baseMin + Math.floor(minCoeff * buffWatk / 100),
     max: baseMax + Math.floor(maxCoeff * buffWatk / 100)
@@ -363,7 +500,9 @@ function onCalculate() {
   const skill = getSelectedAttackSkill();
   const skillLevel = clampLevel(skillLevelInput, skill);
 
-  const venomEnabled = venomEnabledCheck.checked;
+  const job = getSelectedJob();
+  const isThief = job && job.category === 'thief';
+  const venomEnabled = isThief && venomEnabledCheck.checked;
   const venomLevel = parseInt(venomLevelInput.value) || 0;
   let venomParams = null;
   if (venomEnabled && venomLevel > 0) {
@@ -521,6 +660,8 @@ function toggleTheme() {
 
 function saveToStorage() {
   const data = {
+    job: jobSelect.value,
+    weapon: weaponSelect.value,
     str: strInput.value,
     dex: dexInput.value,
     int: intInput.value,
@@ -545,6 +686,7 @@ function loadFromStorage() {
   if (!raw) return;
   try {
     const data = JSON.parse(raw);
+    if (data.job !== undefined) jobSelect.value = data.job;
     if (data.str !== undefined) strInput.value = data.str;
     if (data.dex !== undefined) dexInput.value = data.dex;
     if (data.int !== undefined) intInput.value = data.int;
@@ -552,7 +694,7 @@ function loadFromStorage() {
     if (data.atkMin !== undefined) atkMinInput.value = data.atkMin;
     if (data.atkMax !== undefined) atkMaxInput.value = data.atkMax;
     if (data.monster !== undefined) monsterSelect.value = data.monster;
-    if (data.skill !== undefined) skillSelect.value = data.skill;
+    // skill is restored after populateSkills
     if (data.skillLevel !== undefined) skillLevelInput.value = data.skillLevel;
     if (data.venomEnabled !== undefined) venomEnabledCheck.checked = data.venomEnabled;
     if (data.venomLevel !== undefined) venomLevelInput.value = data.venomLevel;
