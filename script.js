@@ -144,6 +144,7 @@ function updateMonsterInfo() {
 function updateSkillInfo() {
   const skill = getSelectedAttackSkill();
   if (!skill) { skillInfo.innerHTML = ''; return; }
+  if (isInvalidLevel(skillLevelInput)) { skillInfo.innerHTML = ''; return; }
   const level = clampLevel(skillLevelInput, skill);
   const pct = calcDmgPercent(skill, level);
   skillInfo.innerHTML =
@@ -157,6 +158,7 @@ function updateVenomInfo() {
     venomInfo.innerHTML = '<span style="color:var(--text-muted)">已停用</span>';
     return;
   }
+  if (isInvalidLevel(venomLevelInput)) { venomInfo.innerHTML = ''; return; }
   const vp = calcVenomParams(level, num(strInput), num(dexInput), num(lukInput));
   venomInfo.innerHTML =
     `Lv.${level}: 成功率 <b>${(vp.successRate * 100).toFixed(0)}%</b> ｜ ` +
@@ -395,12 +397,19 @@ function clampLevel(input, skill) {
   return v;
 }
 
-/** Show/hide validation tooltip on skill level inputs */
-function validateSkillLevel(el) {
+/** Check if a level input has an invalid value */
+function isInvalidLevel(el) {
   const min = parseInt(el.min) || 0;
   const max = parseInt(el.max) || 30;
   const v = parseInt(el.value);
-  const invalid = isNaN(v) || v < min || v > max || el.value !== String(Math.floor(v));
+  return isNaN(v) || v < min || v > max || el.value !== String(Math.floor(v));
+}
+
+/** Show/hide validation tooltip on skill level inputs */
+function validateSkillLevel(el) {
+  const invalid = isInvalidLevel(el);
+  const min = parseInt(el.min) || 0;
+  const max = parseInt(el.max) || 30;
   el.classList.toggle('input-invalid', invalid);
   // Manage tooltip span
   let tip = el.parentElement.querySelector('.validation-tip');
