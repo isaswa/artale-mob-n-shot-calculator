@@ -166,9 +166,11 @@ function populateMonsters() {
     }
     const opt = document.createElement('option');
     opt.value = i;
-    opt.textContent = `${m.name} (${m.name_en}) [Lv.${m.level}]`;
+    opt.textContent = `${m.name} [Lv.${m.level}]`;
     currentGroup.appendChild(opt);
   });
+  // Default to highest level mob
+  monsterSelect.value = monsters.length - 1;
 }
 
 function populateSkills(jobId) {

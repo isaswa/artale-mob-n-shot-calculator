@@ -1,6 +1,16 @@
 const monsters = [
   // 水世界 (Aqua Road)
   {
+    id: "goby",
+    name: "刺鰭魚",
+    name_en: "Goby",
+    level: 85,
+    area: "水世界",
+    hp: 17000,
+    weapon_def: 645,
+    magic_def: 430
+  },
+  {
     id: "bombing_fish_house",
     name: "刺鰭魚之屋",
     name_en: "Bombing Fish House",
